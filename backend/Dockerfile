@@ -8,8 +8,10 @@ RUN pip install --no-cache-dir uv
 # Copy project definition
 COPY pyproject.toml .
 
-# Install dependencies using uv
-RUN uv pip install --system .
+# Install dependencies using uv with CPU PyTorch index
+RUN uv pip install --system --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match .
+
+
 
 # Copy application code
 COPY app ./app
