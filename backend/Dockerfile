@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir uv
 # Copy project definition
 COPY pyproject.toml .
 
-# Install dependencies using uv with CPU PyTorch index
+# Install dependencies using uv with CPU PyTorch index (5-min timeout for PyTorch wheels)
+ENV UV_HTTP_TIMEOUT=300
 RUN uv pip install --system --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match .
 
 

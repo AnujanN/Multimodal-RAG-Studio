@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import create_tables
-from .routers import chunk, history, presets, techniques, upload
+from .routers import chunk, history, presets, rag, techniques, upload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("chunking_playground")
@@ -13,13 +13,26 @@ logger = logging.getLogger("chunking_playground")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event handler to auto-create database tables on startup."""
+    """Lifespan event handler to auto-create database tables and warm up AI models on startup."""
     logger.info("Initializing Chunking Playground API...")
     try:
         await create_tables()
         logger.info("Database tables initialized successfully.")
     except Exception as e:
         logger.warning(f"Could not connect to database on startup: {e}. DB dependent endpoints may fail.")
+
+    try:
+        logger.info("Warming up AI models (Docling OCR + FastEmbed + CLIP 512d)...")
+        from .file_parser import _docling_manager
+        from .chunkers.ai_powered import SemanticChunker
+        from .embeddings import embedder
+        _docling_manager.get_converter()
+        SemanticChunker._get_model()
+        embedder.embed_text("warmup")
+        logger.info("AI models successfully loaded into memory and ready.")
+    except Exception as e:
+        logger.warning(f"Model warm-up deferred: {e}")
+
     yield
     logger.info("Shutting down Chunking Playground API...")
 
@@ -46,6 +59,7 @@ app.include_router(chunk.router)
 app.include_router(presets.router)
 app.include_router(history.router)
 app.include_router(upload.router)
+app.include_router(rag.router)
 
 
 @app.get("/api/health")

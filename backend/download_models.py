@@ -8,16 +8,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("download_models")
 
 def main():
-    logger.info("Pre-downloading FastEmbed embedding model (BAAI/bge-small-en-v1.5)...")
+    logger.info("Pre-downloading FastEmbed CLIP models (Qdrant/clip-ViT-B-32-text & vision)...")
     try:
-        from fastembed import TextEmbedding
-        TextEmbedding("BAAI/bge-small-en-v1.5")
-        logger.info("FastEmbed model downloaded successfully.")
+        from fastembed import TextEmbedding, ImageEmbedding
+        TextEmbedding("Qdrant/clip-ViT-B-32-text")
+        ImageEmbedding("Qdrant/clip-ViT-B-32-vision")
+        logger.info("FastEmbed CLIP 512d models downloaded successfully.")
     except Exception as e:
-        logger.warning(f"Failed to pre-download FastEmbed model: {e}")
+        logger.warning(f"Failed to pre-download FastEmbed CLIP models: {e}")
 
     logger.info("Pre-downloading Docling OCR & layout models...")
     try:
+        # pyrefly: ignore [missing-import]
         from docling.document_converter import DocumentConverter, PdfFormatOption
         from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
         from docling.datamodel.base_models import InputFormat

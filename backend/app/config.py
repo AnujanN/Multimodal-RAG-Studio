@@ -7,6 +7,14 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     max_upload_size_mb: int = 10
 
+    # Qdrant Cloud Configuration
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_collection_name: str = "multimodal_rag_playground"
+
+    # OpenRouter LLM API Configuration
+    openrouter_api_key: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
