@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+*.egg-info/
+dist/
+build/
+
+# uv
+uv.lock
+
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Cache
+.cache/
+*.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
