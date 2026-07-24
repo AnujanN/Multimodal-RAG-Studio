@@ -23,8 +23,12 @@ RUN uv pip install --system --extra-index-url https://download.pytorch.org/whl/c
 
 
 
-# Copy application code
+# Copy application code and download models script
 COPY app ./app
+COPY download_models.py .
+
+# Pre-download AI models (FastEmbed & Docling layout/OCR weights) during build
+RUN python download_models.py
 
 EXPOSE 8000
 
