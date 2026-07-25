@@ -1,7 +1,7 @@
 """
 Unified Multimodal Embedding Service.
 
-Uses FastEmbed CLIP (Qdrant/clip-ViT-B-32-onnx) to project both text passages
+Uses FastEmbed CLIP models (Qdrant/clip-ViT-B-32-text, Qdrant/clip-ViT-B-32-vision) to project both text passages
 and images into the SAME 512-dimensional vector space for cross-modal RAG search.
 """
 import io
