@@ -1,59 +1,46 @@
 import React from 'react'
-import { Layers, Sparkles, Cpu, BookOpen } from 'lucide-react'
+import { Layers, Sparkles, Cpu, ShieldCheck } from 'lucide-react'
 
 export function Header() {
   return (
-    <header className="glass-card" style={{ padding: '1.5rem 2rem', position: 'relative', overflow: 'hidden' }}>
-      {/* Background Ambient Glow */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-50%',
-          right: '-10%',
-          width: '300px',
-          height: '300px',
-          background: 'radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, rgba(0,0,0,0) 70%)',
-          pointerEvents: 'none',
-        }}
-      />
-      
+    <header className="card" style={{ padding: '1.25rem 1.75rem', position: 'relative', overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div
             style={{
-              background: 'var(--brand-gradient)',
-              padding: '0.75rem',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              padding: '0.65rem',
               borderRadius: 'var(--radius-md)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: 'var(--shadow-glow)',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
             }}
           >
-            <Layers size={28} color="#ffffff" />
+            <Layers size={24} color="#ffffff" />
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <h1 style={{ fontSize: '1.75rem', letterSpacing: '-0.02em' }}>
-                Chunking Strategy Playground
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <h1 style={{ fontSize: '1.45rem', letterSpacing: '-0.02em', fontWeight: 700 }}>
+                Chunking Strategies & Multimodal RAG Studio
               </h1>
-              <span className="badge badge-ai_powered" style={{ fontSize: '0.75rem' }}>
-                <Sparkles size={12} style={{ marginRight: '4px' }} /> 21 Techniques
+              <span className="badge badge-basic" style={{ fontSize: '0.7rem' }}>
+                <Sparkles size={11} style={{ marginRight: '3px' }} /> v0.1.0
               </span>
             </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-              Interactive testbed for basic, advanced, and AI-powered text chunking strategies for building high-precision RAG systems.
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.15rem' }}>
+              High-precision RAG playground featuring 21 chunking strategies, Qdrant Cloud 512d CLIP vectors, and OpenRouter LLMs.
             </p>
           </div>
         </div>
 
-        {/* Feature Badges */}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            <Cpu size={14} color="var(--accent-purple)" /> FastEmbed & Docling OCR
+        {/* System Badges */}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.3rem 0.75rem', borderRadius: '9999px', border: '1px solid rgba(16, 185, 129, 0.2)', fontWeight: 500 }}>
+            <ShieldCheck size={14} /> Qdrant Cloud Ready
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            <BookOpen size={14} color="var(--accent-cyan)" /> 9 Upload Formats
+            <Cpu size={14} color="#818cf8" /> Docling OCR + FastEmbed
           </div>
         </div>
       </div>

@@ -6,13 +6,12 @@ import {
   Bot,
   User,
   Database,
-  Layers,
   Sparkles,
   Eye,
   FileText,
-  CheckCircle2,
   X,
-  HelpCircle,
+  Sliders,
+  FileCheck,
 } from 'lucide-react'
 
 export function RagChatPanel() {
@@ -38,7 +37,7 @@ export function RagChatPanel() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hello! Upload your documents or diagrams above, pick a chunking & retrieval method, then ask me anything!',
+      content: 'Welcome to Multimodal RAG Studio! Select your files, choose your chunker and retriever strategies above, then click "Process & Build Qdrant Index" to get started.',
     },
   ])
   const [inputQuery, setInputQuery] = useState('')
@@ -49,7 +48,6 @@ export function RagChatPanel() {
   const chatEndRef = useRef(null)
 
   useEffect(() => {
-    // Fetch models & retrievers from backend
     fetch('/api/rag/models')
       .then(res => res.json())
       .then(data => setModels(data.models || []))
@@ -76,20 +74,18 @@ export function RagChatPanel() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, chatLoading])
 
-  // Handle File Selection
   const handleFileChange = (e) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files))
     }
   }
 
-  // Run Ingestion Pipeline via Server-Sent Events (SSE)
   const handleRunIngestion = async () => {
     if (!files.length) return
 
     setIngestStatus('parsing')
     setIngestStep('parsing')
-    setIngestMsg('Uploading files...')
+    setIngestMsg('Uploading document batch...')
     setIngestProgress(10)
 
     const formData = new FormData()
@@ -145,7 +141,7 @@ export function RagChatPanel() {
               setIngestMsg(data.message)
             }
           } catch (err) {
-            console.error('SSE JSON parse error:', err)
+            console.error('SSE parse error:', err)
           }
         }
       }
@@ -156,7 +152,6 @@ export function RagChatPanel() {
     }
   }
 
-  // Handle Send Chat Query
   const handleSendChat = async (e) => {
     e?.preventDefault()
     if (!inputQuery.trim() || chatLoading) return
@@ -203,63 +198,63 @@ export function RagChatPanel() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* ── Config & Upload Control Panel ────────────────────────────────── */}
-      <div className="card" style={{ padding: '1.5rem' }}>
-        <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
-          <Sparkles color="#89b4fa" size={20} />
-          <span>Multimodal RAG Setup & Controls</span>
-        </h3>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* ── Control Panel Card ────────────────────────────────────────── */}
+      <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Sliders size={18} color="#818cf8" />
+            <span>RAG Strategy & Pipeline Configuration</span>
+          </h3>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            Single 512d CLIP Vector Space
+          </span>
+        </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-          {/* OpenRouter Model Selection */}
+        {/* Strategy Controls Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.85rem' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: '#cdd6f4' }}>
-              🤖 OpenRouter LLM Model
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+              LLM Model (OpenRouter)
             </label>
             <select
               value={selectedModel}
               onChange={e => setSelectedModel(e.target.value)}
               className="select-input"
-              style={{ width: '100%' }}
             >
               {models.map(m => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({m.provider})
+                  {m.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Chunking Method Selector */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: '#cdd6f4' }}>
-              ✂️ Chunking Strategy (21 Available)
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+              Chunking Strategy (21 Available)
             </label>
             <select
               value={chunkTechnique}
               onChange={e => setChunkTechnique(e.target.value)}
               className="select-input"
-              style={{ width: '100%' }}
             >
               {techniques.map(t => (
                 <option key={t.name} value={t.name}>
-                  {t.name.replace('_', ' ').toUpperCase()} ({t.category})
+                  {t.name.replace(/_/g, ' ').toUpperCase()} ({t.category})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Retrieval Method Selector */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: '#cdd6f4' }}>
-              🔍 Retrieval Strategy
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+              Retrieval Technique
             </label>
             <select
               value={retrievalTechnique}
               onChange={e => setRetrievalTechnique(e.target.value)}
               className="select-input"
-              style={{ width: '100%' }}
             >
               {retrievers.map(r => (
                 <option key={r.name} value={r.name}>
@@ -270,27 +265,28 @@ export function RagChatPanel() {
           </div>
         </div>
 
-        {/* Multi-File Upload Box */}
-        <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        {/* Upload & Index Bar */}
+        <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
           <label
             style={{
               flex: 1,
               minWidth: '240px',
-              border: '2px dashed var(--border-color, #313244)',
-              borderRadius: 'var(--radius-md, 8px)',
-              padding: '0.8rem 1rem',
+              border: '1px dashed rgba(255, 255, 255, 0.15)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.7rem 1rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.5rem',
               cursor: 'pointer',
-              background: 'rgba(255, 255, 255, 0.02)',
-              fontSize: '0.9rem',
-              color: '#cdd6f4',
+              background: 'rgba(15, 23, 42, 0.6)',
+              fontSize: '0.875rem',
+              color: 'var(--text-primary)',
+              transition: 'border-color 0.2s ease',
             }}
           >
-            <Upload size={18} color="#89b4fa" />
-            <span>{files.length ? `${files.length} file(s) selected` : 'Select Documents / Images (PDF, PNG, DOCX...)'}</span>
+            {files.length ? <FileCheck size={18} color="#10b981" /> : <Upload size={18} color="#818cf8" />}
+            <span>{files.length ? `${files.length} document(s) selected` : 'Drop or Select Files (PDF, PNG, DOCX, CSV...)'}</span>
             <input type="file" multiple onChange={handleFileChange} style={{ display: 'none' }} />
           </label>
 
@@ -298,14 +294,14 @@ export function RagChatPanel() {
             onClick={handleRunIngestion}
             disabled={!files.length || (ingestStatus !== 'idle' && ingestStatus !== 'complete' && ingestStatus !== 'error')}
             className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem' }}
+            style={{ padding: '0.7rem 1.4rem' }}
           >
-            <Database size={18} />
-            <span>Process & Build Qdrant Index</span>
+            <Database size={17} />
+            <span>Process & Build Index</span>
           </button>
         </div>
 
-        {/* Live SSE Stepper */}
+        {/* Real-time Stepper Animation */}
         <PipelineStepper
           status={ingestStatus}
           step={ingestStep}
@@ -314,15 +310,20 @@ export function RagChatPanel() {
         />
       </div>
 
-      {/* ── RAG Chat Window ──────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', height: '520px' }}>
-        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Bot color="#cba6f7" size={20} />
-          <span>Interactive RAG QA Chat</span>
-        </h3>
+      {/* ── Interactive Chat Interface ─────────────────────────────────── */}
+      <div className="card" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', height: '540px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Bot size={18} color="#cba6f7" />
+            <span>Multimodal RAG Conversation</span>
+          </h3>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+            Retriever: <strong>{retrievalTechnique}</strong>
+          </span>
+        </div>
 
-        {/* Messages Stream */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Chat History Container */}
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           {messages.map((msg, i) => (
             <div
               key={i}
@@ -330,58 +331,61 @@ export function RagChatPanel() {
                 display: 'flex',
                 gap: '0.75rem',
                 flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                alignItems: 'flex-start',
               }}
             >
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '50%',
-                  background: msg.role === 'user' ? '#89b4fa' : '#cba6f7',
-                  color: '#11111b',
+                  background: msg.role === 'user' ? 'linear-gradient(135deg, #6366f1, #818cf8)' : '#1e293b',
+                  border: `1px solid ${msg.role === 'user' ? 'transparent' : 'rgba(255,255,255,0.1)'}`,
+                  color: msg.role === 'user' ? '#ffffff' : '#cba6f7',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}
               >
-                {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
+                {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
 
-              <div style={{ maxWidth: '80%' }}>
+              <div style={{ maxWidth: '82%' }}>
                 <div
                   style={{
-                    background: msg.role === 'user' ? 'rgba(137, 180, 250, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                    border: `1px solid ${msg.role === 'user' ? 'rgba(137, 180, 250, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
-                    borderRadius: '12px',
-                    padding: '0.85rem 1.1rem',
-                    fontSize: '0.92rem',
-                    lineHeight: '1.5',
-                    color: '#cdd6f4',
+                    background: msg.role === 'user' ? 'rgba(99, 102, 241, 0.14)' : 'rgba(255, 255, 255, 0.04)',
+                    border: `1px solid ${msg.role === 'user' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.75rem 1rem',
+                    fontSize: '0.9rem',
+                    lineHeight: '1.55',
+                    color: 'var(--text-primary)',
                     whiteSpace: 'pre-wrap',
                   }}
                 >
                   {msg.content}
                 </div>
 
-                {/* Retrieved Context Inspector Button */}
+                {/* Inspect Context Button */}
                 {msg.context && msg.context.length > 0 && (
                   <button
                     onClick={() => setInspectorContext(msg.context)}
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#89b4fa',
-                      fontSize: '0.8rem',
+                      color: '#818cf8',
+                      fontSize: '0.78rem',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.3rem',
                       cursor: 'pointer',
-                      marginTop: '0.4rem',
+                      marginTop: '0.35rem',
+                      fontWeight: 500,
                     }}
                   >
-                    <Eye size={14} />
-                    <span>Inspect {msg.context.length} Retrieved Context Chunks ({msg.retriever})</span>
+                    <Eye size={13} />
+                    <span>Inspect {msg.context.length} Retrieved Chunks ({msg.retriever})</span>
                   </button>
                 )}
               </div>
@@ -390,34 +394,35 @@ export function RagChatPanel() {
 
           {chatLoading && (
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#cba6f7', color: '#11111b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Bot size={18} />
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#cba6f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Bot size={16} />
               </div>
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.6rem 1rem', borderRadius: '12px', fontSize: '0.85rem', color: '#a6adc8' }}>
-                Searching Qdrant & synthesizing answer via OpenRouter...
+              <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span className="pulse-dot" style={{ marginRight: '0.5rem' }} />
+                Synthesizing response via OpenRouter ({selectedModel})...
               </div>
             </div>
           )}
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Bar */}
-        <form onSubmit={handleSendChat} style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+        {/* Query Input Bar */}
+        <form onSubmit={handleSendChat} style={{ display: 'flex', gap: '0.65rem', marginTop: '0.85rem' }}>
           <input
             type="text"
-            placeholder="Ask a question about your indexed documents..."
+            placeholder="Ask a question based on your indexed document context..."
             value={inputQuery}
             onChange={e => setInputQuery(e.target.value)}
             className="text-input"
-            style={{ flex: 1, padding: '0.75rem 1rem' }}
+            style={{ flex: 1, padding: '0.65rem 0.9rem' }}
           />
-          <button type="submit" disabled={!inputQuery.trim() || chatLoading} className="btn btn-primary" style={{ padding: '0.75rem 1.25rem' }}>
-            <Send size={18} />
+          <button type="submit" disabled={!inputQuery.trim() || chatLoading} className="btn btn-primary" style={{ padding: '0.65rem 1.1rem' }}>
+            <Send size={16} />
           </button>
         </form>
       </div>
 
-      {/* ── Context Inspector Modal ────────────────────────────────────────── */}
+      {/* ── Context Inspector Modal ────────────────────────────────────── */}
       {inspectorContext && (
         <div
           style={{
@@ -434,57 +439,57 @@ export function RagChatPanel() {
         >
           <div
             style={{
-              background: 'var(--bg-secondary, #1e1e2e)',
-              border: '1px solid var(--border-color, #313244)',
-              borderRadius: '16px',
-              maxWidth: '750px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-lg)',
+              maxWidth: '720px',
               width: '100%',
               maxHeight: '80vh',
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
             }}
           >
-            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color, #313244)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cdd6f4' }}>
-                <Eye color="#89b4fa" size={20} />
-                <span>Context Inspector (Retrieved Chunks)</span>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Eye color="#818cf8" size={18} />
+                <span>Context Inspector — Retrieved Chunks</span>
               </h3>
-              <button onClick={() => setInspectorContext(null)} style={{ background: 'none', border: 'none', color: '#a6adc8', cursor: 'pointer' }}>
-                <X size={20} />
+              <button onClick={() => setInspectorContext(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={18} />
               </button>
             </div>
 
-            <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {inspectorContext.map((c, idx) => (
                 <div
                   key={idx}
                   style={{
                     background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '8px',
-                    padding: '1rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.8rem' }}>
-                    <span style={{ color: '#89b4fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <FileText size={14} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.78rem' }}>
+                    <span style={{ color: '#818cf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <FileText size={13} />
                       {c.source_name}
                     </span>
-                    <span style={{ background: 'rgba(166, 227, 161, 0.15)', color: '#a6e3a1', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
-                      Match Score: {c.score}
+                    <span style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 600 }}>
+                      Score: {c.score}
                     </span>
                   </div>
                   <pre
                     style={{
                       margin: 0,
                       whiteSpace: 'pre-wrap',
-                      fontFamily: 'monospace',
-                      fontSize: '0.85rem',
-                      color: '#bac2de',
-                      background: 'rgba(0, 0, 0, 0.2)',
-                      padding: '0.75rem',
-                      borderRadius: '6px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.82rem',
+                      color: 'var(--text-secondary)',
+                      background: 'var(--bg-input)',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: 'var(--radius-sm)',
                     }}
                   >
                     {c.text}
