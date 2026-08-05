@@ -1,5 +1,6 @@
 """
 RAG Service Layer — Streams ingestion pipeline via SSE and synthesizes QA via OpenRouter API.
+Supports per-user credentials (Qdrant URL/Key + OpenRouter Key) or falls back to .env admin keys.
 """
 import asyncio
 import json
@@ -11,7 +12,7 @@ from ..chunkers import CHUNKER_REGISTRY
 from ..config import settings
 from ..embeddings import embedder
 from ..file_parser import FileParser
-from ..qdrant_service import qdrant_service
+from ..qdrant_service import QdrantService
 from ..retrievers import get_retriever
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,35 @@ AVAILABLE_OPENROUTER_MODELS = [
 ]
 
 
+def _resolve_credentials(user_creds: dict | None) -> tuple[str, str, str, str]:
+    """
+    Resolve Qdrant and OpenRouter credentials for a request.
+    Returns: (qdrant_url, qdrant_api_key, collection_name, openrouter_api_key)
+    Admin users (user_creds=None) use .env settings.
+    Regular users use their decrypted stored credentials.
+    """
+    if user_creds is None:
+        # Admin — use .env
+        return (
+            settings.qdrant_url,
+            settings.qdrant_api_key,
+            settings.qdrant_collection_name,
+            settings.openrouter_api_key,
+        )
+    return (
+        user_creds.get("qdrant_url", ""),
+        user_creds.get("qdrant_api_key", ""),
+        user_creds.get("qdrant_collection_name", f"rag_{user_creds.get('user_id', 'default')}"),
+        user_creds.get("openrouter_api_key", ""),
+    )
+
+
 async def run_ingestion_pipeline_stream(
     files: list[dict[str, Any]],  # [{"filename": str, "content": bytes}]
     chunk_technique: str,
     chunk_params: dict,
     session_id: str,
+    user_creds: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Server-Sent Events (SSE) generator streaming ingestion progress steps.
@@ -60,7 +85,13 @@ async def run_ingestion_pipeline_stream(
     Step 3: Dual 512d CLIP Embedding
     Step 4: Qdrant Indexing
     """
-    logger.info("Starting SSE RAG Ingestion Pipeline for session '%s' (%d files, technique='%s')", session_id, len(files), chunk_technique)
+    logger.info(
+        "Starting SSE RAG Ingestion Pipeline for session '%s' (%d files, technique='%s')",
+        session_id, len(files), chunk_technique,
+    )
+
+    qdrant_url, qdrant_api_key, collection_name, _ = _resolve_credentials(user_creds)
+    user_id = user_creds.get("user_id") if user_creds else None
 
     def sse(event: str, data: dict) -> str:
         return f"event: {event}\ndata: {json.dumps(data)}\n\n"
@@ -99,14 +130,18 @@ async def run_ingestion_pipeline_stream(
             chunks = chunker.chunk(p["text"], **chunk_params)
             for i, c in enumerate(chunks):
                 all_chunks.append(c)
-                payloads.append({
+                payload = {
                     "session_id": session_id,
                     "text": c,
                     "chunk_index": i,
                     "source_name": p["filename"],
                     "source_type": "text",
                     "technique": chunk_technique,
-                })
+                }
+                # Tag with user_id for multi-tenant isolation
+                if user_id is not None:
+                    payload["user_id"] = user_id
+                payloads.append(payload)
 
         logger.info("Step 2 complete — created %d chunk(s).", len(all_chunks))
 
@@ -123,13 +158,19 @@ async def run_ingestion_pipeline_stream(
         logger.info("Step 3 complete — generated %d 512d CLIP vector(s).", len(vectors))
 
         # ── Step 4: Qdrant Indexing ───────────────────────────────────────────
-        yield sse("progress", {"step": "indexing", "message": "Indexing vectors & payloads into Qdrant Cloud...", "progress": 95})
+        yield sse("progress", {"step": "indexing", "message": "Indexing vectors & payloads into Qdrant...", "progress": 95})
         await asyncio.sleep(0.3)
 
-        indexed_count = qdrant_service.upsert_points(vectors=vectors, payloads=payloads)
-        logger.info("Step 4 complete — indexed %d points in Qdrant.", indexed_count)
+        # Build per-request Qdrant service with user's credentials
+        qs = QdrantService(
+            url=qdrant_url or None,
+            api_key=qdrant_api_key or None,
+            collection_name=collection_name,
+        )
+        indexed_count = qs.upsert_points(vectors=vectors, payloads=payloads)
+        logger.info("Step 4 complete — indexed %d points in Qdrant collection '%s'.", indexed_count, collection_name)
 
-        yield sse("progress", {"step": "complete", "message": f"Successfully indexed {indexed_count} chunk(s) into Qdrant Cloud!", "progress": 100})
+        yield sse("progress", {"step": "complete", "message": f"Successfully indexed {indexed_count} chunk(s) into Qdrant!", "progress": 100})
         yield sse("done", {"session_id": session_id, "total_chunks": indexed_count})
 
     except Exception as e:
@@ -143,25 +184,53 @@ async def generate_rag_answer(
     model_id: str,
     session_id: str | None = None,
     limit: int = 4,
+    user_creds: dict | None = None,
 ) -> dict[str, Any]:
     """
     Run chosen retriever to fetch top chunks, then query OpenRouter API to generate answer.
+    Accepts per-user credentials or falls back to admin .env keys.
     """
     logger.info("RAG QA Request — model=%s, retriever=%s, query='%s'", model_id, retrieval_technique, query[:50])
 
-    # 1. Retrieve context chunks
-    retriever = get_retriever(retrieval_technique)
-    context_items = await retriever.retrieve(query=query, limit=limit, session_id=session_id)
+    qdrant_url, qdrant_api_key, collection_name, openrouter_key = _resolve_credentials(user_creds)
+    user_id = user_creds.get("user_id") if user_creds else None
 
-    if not context_items:
+    if not openrouter_key:
         return {
-            "answer": "No relevant context found in the uploaded documents. Please index some documents first.",
+            "answer": (
+                "⚠️ **OpenRouter API Key not configured.**\n\n"
+                "Please go to ⚙️ Settings and add your OpenRouter API key to enable RAG answers."
+            ),
             "retrieved_context": [],
             "model_used": model_id,
             "retrieval_technique": retrieval_technique,
         }
 
-    # 2. Build system prompt & context string
+    # Build per-user Qdrant service
+    qs = QdrantService(
+        url=qdrant_url or None,
+        api_key=qdrant_api_key or None,
+        collection_name=collection_name,
+    )
+
+    # 1. Retrieve context chunks (with user_id filter for isolation)
+    retriever = get_retriever(
+        retrieval_technique,
+        qdrant_service=qs,
+        user_id=user_id,
+        openrouter_api_key=openrouter_key,
+    )
+    context_items = await retriever.retrieve(query=query, limit=limit, session_id=session_id)
+
+    if not context_items:
+        return {
+            "answer": "No relevant context found in the indexed documents. Please upload and index documents first.",
+            "retrieved_context": [],
+            "model_used": model_id,
+            "retrieval_technique": retrieval_technique,
+        }
+
+    # 2. Build prompt & context string
     context_str = "\n\n---\n\n".join([
         f"[Source: {item['source_name']} | Match Score: {item['score']}]\n{item['text']}"
         for item in context_items
@@ -172,44 +241,36 @@ async def generate_rag_answer(
         "the provided document context snippets below. If the context does not contain enough information, "
         "say so clearly. Always cite the document source names in your response."
     )
-
     user_message = f"DOCUMENT CONTEXT:\n{context_str}\n\nUSER QUESTION:\n{query}"
 
     # 3. Call OpenRouter API
     answer = "Error generating response from LLM."
-    if settings.openrouter_api_key:
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {settings.openrouter_api_key.strip()}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": model_id,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_message},
-                        ],
-                        "temperature": 0.3,
-                    },
-                )
-                if resp.status_code == 200:
-                    answer = resp.json()["choices"][0]["message"]["content"]
-                    logger.info("OpenRouter response generated successfully (%d chars).", len(answer))
-                else:
-                    logger.error("OpenRouter API returned HTTP %d: %s", resp.status_code, resp.text)
-                    answer = f"[OpenRouter API Error {resp.status_code}: {resp.text}]"
-        except Exception as e:
-            logger.error("Failed to connect to OpenRouter API: %s", e, exc_info=True)
-            answer = f"[Connection error to OpenRouter: {str(e)}]"
-    else:
-        logger.warning("No OpenRouter API Key set in environment (.env). Synthesizing fallback offline summary.")
-        answer = (
-            "⚠️ **OpenRouter API Key not set in `.env`**\n\n"
-            "Below are the top retrieved context chunks for your question:\n\n" + context_str
-        )
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {openrouter_key.strip()}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model_id,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                    "temperature": 0.3,
+                },
+            )
+            if resp.status_code == 200:
+                answer = resp.json()["choices"][0]["message"]["content"]
+                logger.info("OpenRouter response generated successfully (%d chars).", len(answer))
+            else:
+                logger.error("OpenRouter API returned HTTP %d: %s", resp.status_code, resp.text)
+                answer = f"[OpenRouter API Error {resp.status_code}: {resp.text}]"
+    except Exception as e:
+        logger.error("Failed to connect to OpenRouter API: %s", e, exc_info=True)
+        answer = f"[Connection error to OpenRouter: {str(e)}]"
 
     return {
         "answer": answer,

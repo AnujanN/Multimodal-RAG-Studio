@@ -17,31 +17,40 @@ logger = logging.getLogger(__name__)
 
 
 class QdrantService:
-    """Singleton service for Qdrant Cloud database operations."""
+    """
+    Qdrant Cloud database operations.
+    Can be instantiated with per-user credentials (multi-tenant)
+    or falls back to global .env settings (admin).
+    """
 
-    _client: QdrantClient | None = None
+    def __init__(
+        self,
+        url: str | None = None,
+        api_key: str | None = None,
+        collection_name: str | None = None,
+    ):
+        self._url = (url or settings.qdrant_url or "").strip()
+        self._api_key = (api_key or settings.qdrant_api_key or "").strip()
+        self._collection_name = collection_name or settings.qdrant_collection_name
+        self._client: QdrantClient | None = None
 
     def get_client(self) -> QdrantClient:
         """Return QdrantClient instance, creating it if needed."""
         if self._client is None:
-            url = settings.qdrant_url.strip()
-            api_key = settings.qdrant_api_key.strip()
-
-            if url and api_key:
-                logger.info("Connecting to Qdrant Cloud at %s...", url[:30] + "...")
-                self._client = QdrantClient(url=url, api_key=api_key)
-            elif url:
-                logger.info("Connecting to Qdrant at %s (no API key)...", url)
-                self._client = QdrantClient(url=url)
+            if self._url and self._api_key:
+                logger.info("Connecting to Qdrant Cloud at %s...", self._url[:30] + "...")
+                self._client = QdrantClient(url=self._url, api_key=self._api_key)
+            elif self._url:
+                logger.info("Connecting to Qdrant at %s (no API key)...", self._url)
+                self._client = QdrantClient(url=self._url)
             else:
                 logger.info("No Qdrant URL configured — initializing in-memory Qdrant client for local dev.")
                 self._client = QdrantClient(":memory:")
-
         return self._client
 
     def ensure_collection_exists(self, collection_name: str | None = None) -> str:
         """Create the Qdrant 512d Cosine collection if it doesn't exist yet."""
-        target_collection = collection_name or settings.qdrant_collection_name
+        target_collection = collection_name or self._collection_name
         client = self.get_client()
 
         try:
@@ -72,6 +81,7 @@ class QdrantService:
         collection_name: str | None = None,
     ) -> int:
         """Upsert a list of 512d vectors with associated metadata payloads."""
+        # Allow caller to override collection_name, else use instance default
         if not vectors or not payloads or len(vectors) != len(payloads):
             raise ValueError("Vectors and payloads must be non-empty and equal in length.")
 
@@ -102,21 +112,23 @@ class QdrantService:
         limit: int = 5,
         session_id: str | None = None,
         collection_name: str | None = None,
+        user_id: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Perform dense cosine similarity search in Qdrant."""
+        """Perform dense cosine similarity search in Qdrant with optional user_id isolation."""
         target_collection = self.ensure_collection_exists(collection_name)
         client = self.get_client()
 
-        query_filter = None
-        if session_id:
-            query_filter = qmodels.Filter(
-                must=[
-                    qmodels.FieldCondition(
-                        key="session_id",
-                        match=qmodels.MatchValue(value=session_id),
-                    )
-                ]
+        must_conditions: list = []
+        if user_id is not None:
+            must_conditions.append(
+                qmodels.FieldCondition(key="user_id", match=qmodels.MatchValue(value=user_id))
             )
+        if session_id:
+            must_conditions.append(
+                qmodels.FieldCondition(key="session_id", match=qmodels.MatchValue(value=session_id))
+            )
+
+        query_filter = qmodels.Filter(must=must_conditions) if must_conditions else None
 
         try:
             logger.info("Searching Qdrant dense vector index (limit=%d)...", limit)
@@ -141,4 +153,5 @@ class QdrantService:
             raise RuntimeError(f"Qdrant search failed: {e}") from e
 
 
+# Default global admin instance (uses .env credentials)
 qdrant_service = QdrantService()

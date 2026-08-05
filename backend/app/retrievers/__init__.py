@@ -16,9 +16,18 @@ RETRIEVER_REGISTRY: dict[str, Type[BaseRetriever]] = {
 }
 
 
-def get_retriever(name: str) -> BaseRetriever:
-    """Instantiate and return retriever by strategy name."""
+def get_retriever(
+    name: str,
+    qdrant_service=None,
+    user_id: int | None = None,
+    openrouter_api_key: str | None = None,
+) -> BaseRetriever:
+    """Instantiate and return retriever by strategy name, passing optional per-user credentials."""
     if name not in RETRIEVER_REGISTRY:
         raise ValueError(f"Unknown retriever technique: '{name}'. Available: {list(RETRIEVER_REGISTRY.keys())}")
     cls = RETRIEVER_REGISTRY[name]
-    return cls()
+    return cls(
+        qdrant_service=qdrant_service,
+        user_id=user_id,
+        openrouter_api_key=openrouter_api_key,
+    )

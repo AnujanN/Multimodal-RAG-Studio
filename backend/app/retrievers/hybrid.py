@@ -9,7 +9,6 @@ from typing import Any
 
 from .base import BaseRetriever
 from ..embeddings import embedder
-from ..qdrant_service import qdrant_service
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +46,11 @@ class HybridRetriever(BaseRetriever):
 
         # 1. Get candidates via Dense Vector Search
         query_vector = embedder.embed_text(query)
-        candidates = qdrant_service.search_dense(
+        candidates = self.qs.search_dense(
             query_vector=query_vector,
             limit=limit * 3,  # Candidate pool for RRF
             session_id=session_id,
+            user_id=self.user_id,
         )
 
         if not candidates:

@@ -11,14 +11,14 @@ import httpx
 from .base import BaseRetriever
 from ..config import settings
 from ..embeddings import embedder
-from ..qdrant_service import qdrant_service
 
 logger = logging.getLogger(__name__)
 
 
-async def _generate_query_variations(query: str) -> list[str]:
+async def _generate_query_variations(query: str, api_key: str | None = None) -> list[str]:
     """Generate 3 alternative query variations using OpenRouter API."""
-    if not settings.openrouter_api_key:
+    key = (api_key or settings.openrouter_api_key or "").strip()
+    if not key:
         logger.warning("No OpenRouter API key configured — using original query as fallback.")
         return [query]
 
@@ -33,7 +33,7 @@ async def _generate_query_variations(query: str) -> list[str]:
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {settings.openrouter_api_key.strip()}",
+                    "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
                 },
                 json={
@@ -68,8 +68,8 @@ class MultiQueryRetriever(BaseRetriever):
     ) -> list[dict[str, Any]]:
         logger.info("Running Multi-Query Retrieval for: '%s'", query[:50])
 
-        # 1. Expand query into variations
-        variations = await _generate_query_variations(query)
+        # 1. Expand query into variations using per-user OpenRouter key
+        variations = await _generate_query_variations(query, api_key=self.openrouter_api_key)
 
         # 2. Run dense search for each query variation
         seen_ids = set()
@@ -77,10 +77,11 @@ class MultiQueryRetriever(BaseRetriever):
 
         for q in variations:
             q_vector = embedder.embed_text(q)
-            results = qdrant_service.search_dense(
+            results = self.qs.search_dense(
                 query_vector=q_vector,
                 limit=limit,
                 session_id=session_id,
+                user_id=self.user_id,
             )
             for r in results:
                 item_id = r.get("_id")

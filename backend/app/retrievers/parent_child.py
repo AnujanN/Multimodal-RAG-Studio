@@ -9,7 +9,6 @@ from typing import Any
 
 from .base import BaseRetriever
 from ..embeddings import embedder
-from ..qdrant_service import qdrant_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +31,11 @@ class ParentChildRetriever(BaseRetriever):
         query_vector = embedder.embed_text(query)
 
         # 2. Search Qdrant
-        raw_results = qdrant_service.search_dense(
+        raw_results = self.qs.search_dense(
             query_vector=query_vector,
             limit=limit,
             session_id=session_id,
+            user_id=self.user_id,
         )
 
         formatted = []
