@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { PipelineStepper } from './PipelineStepper'
+import { useAuth } from '../context/AuthContext'
 import {
   Send,
   Upload,
@@ -12,9 +13,13 @@ import {
   X,
   Sliders,
   FileCheck,
+  Lock,
+  Key,
 } from 'lucide-react'
 
-export function RagChatPanel() {
+export function RagChatPanel({ credStatus, onOpenSettings }) {
+  const { getAuthHeader } = useAuth()
+
   // Ingestion & File State
   const [files, setFiles] = useState([])
   const [chunkTechnique, setChunkTechnique] = useState('semantic_chunker')
@@ -48,12 +53,13 @@ export function RagChatPanel() {
   const chatEndRef = useRef(null)
 
   useEffect(() => {
-    fetch('/api/rag/models')
+    const headers = getAuthHeader()
+    fetch('/api/rag/models', { headers })
       .then(res => res.json())
       .then(data => setModels(data.models || []))
       .catch(console.error)
 
-    fetch('/api/rag/retrievers')
+    fetch('/api/rag/retrievers', { headers })
       .then(res => res.json())
       .then(data => setRetrievers(data.retrievers || []))
       .catch(console.error)
@@ -69,6 +75,7 @@ export function RagChatPanel() {
       })
       .catch(console.error)
   }, [])
+
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -96,6 +103,7 @@ export function RagChatPanel() {
     try {
       const response = await fetch('/api/rag/pipeline-stream', {
         method: 'POST',
+        headers: getAuthHeader(),
         body: formData,
       })
 
@@ -164,7 +172,7 @@ export function RagChatPanel() {
     try {
       const res = await fetch('/api/rag/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
           query: userText,
           model_id: selectedModel,
@@ -197,11 +205,51 @@ export function RagChatPanel() {
     }
   }
 
+  // Show lock overlay if credentials not configured and not admin
+  const ragLocked = credStatus && !credStatus.configured && !credStatus.is_admin
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* ── Control Panel Card ────────────────────────────────────────── */}
-      <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      {/* ── RAG Lock Overlay ─────────────────────────────────────────────── */}
+      {ragLocked && (
+        <div className="card" style={{
+          padding: '3rem 2rem',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1rem',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
+          background: 'rgba(245, 158, 11, 0.04)',
+        }}>
+          <div style={{ background: 'rgba(245,158,11,0.1)', borderRadius: '50%', padding: '1rem', display: 'inline-flex' }}>
+            <Lock size={28} color="#f59e0b" />
+          </div>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>RAG Studio Requires API Keys</h3>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '420px', fontSize: '0.9rem', margin: 0 }}>
+            To use the Multimodal RAG features, you need to configure your <strong>Qdrant Cloud</strong> cluster and <strong>OpenRouter</strong> API key. Your keys are encrypted and stored securely.
+          </p>
+          <button
+            onClick={onOpenSettings}
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1.5rem' }}
+          >
+            <Key size={17} /> Configure API Keys
+          </button>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>
+            You can still use the <strong>21 Chunking Strategies Lab</strong> tab without API keys.
+          </p>
+        </div>
+      )}
+
+      {/* ── Normal RAG Panel (when credentials configured) ─────────────── */}
+      {!ragLocked && (
+        <React.Fragment>
+
+        {/* ── Control Panel Card ────────────────────────────────────────── */}
+        <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <Sliders size={18} color="#818cf8" />
             <span>RAG Strategy & Pipeline Configuration</span>
@@ -499,6 +547,8 @@ export function RagChatPanel() {
             </div>
           </div>
         </div>
+      )}
+        </React.Fragment>
       )}
     </div>
   )
