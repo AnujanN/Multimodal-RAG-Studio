@@ -1,11 +1,24 @@
 # Chunking Strategies & Multimodal RAG Studio 🚀
 
-An interactive, high-performance web application to test, compare, and execute **21 text chunking techniques** and run a **Custom Multimodal RAG System** powered by **Qdrant Cloud**, **FastEmbed CLIP (512d)**, and **OpenRouter LLMs**.
+An interactive, high-performance web application to test, compare, and execute **21 text chunking techniques** and run a **Custom Multimodal RAG System** powered by **Qdrant Cloud**, **FastEmbed CLIP (512d)**, and **OpenRouter LLMs** — with **User Authentication** and **Per-User Encrypted API Key Management**.
 
 ---
 
 ## ✨ Features
 
+- 🔑 **User Authentication & Google OAuth SSO**:
+  - Secure **Email + Password login** with 24-hour signed JWT tokens.
+  - **Google OAuth2 SSO** integration ("Continue with Google").
+  - **Admin Mode**: `is_admin = True` users automatically use system `.env` credentials.
+- 🔒 **Per-User Encrypted API Keys & Multi-Tenancy**:
+  - Each user brings their own **Qdrant Cloud** and **OpenRouter** API keys.
+  - **Fernet Symmetric Encryption**: Keys are encrypted at rest in PostgreSQL before storage.
+  - **Isolated Qdrant Collections**: Documents are indexed in per-user isolated collections (`rag_{user_id}`).
+  - **Flexible Access**: Users can skip key setup to use the **21 Chunking Strategies Lab** without entering API keys.
+- 🎨 **Public Landing Page & UI**:
+  - Hero showcase page highlighting features with quick **Log In** & **Sign Up Free** entry.
+  - Header **⚙️ Settings** modal for updating API keys at any time.
+  - **RAG Lock Overlay** for accounts without keys, with instant unlock upon entering credentials.
 - ✂️ **21 Chunking Strategies**: Basic (6), Advanced (8), and AI-Powered (7) with interactive parameter controls.
 - 🚀 **Multimodal RAG Studio**:
   - **Unified 512d CLIP Vector Space**: Projects both text passages and raw images into the exact same 512d vector space (`Qdrant/clip-ViT-B-32-text` & `vision`).
@@ -27,7 +40,7 @@ Copy `.env.example` to `.env` in the root directory:
 cp .env.example .env
 ```
 
-Configure your credentials in `.env`:
+Configure system defaults in `.env`:
 
 ```env
 # Database Configuration
@@ -35,16 +48,24 @@ DATABASE_URL=postgresql+asyncpg://chunker:chunker_pass@postgres:5432/chunking_pl
 CORS_ORIGINS=http://localhost,http://localhost:5173
 MAX_UPLOAD_SIZE_MB=10
 
-# Qdrant Cloud Credentials
+# Qdrant Cloud Credentials (Admin / .env defaults)
 QDRANT_URL=https://your-cluster-id.cloud.qdrant.io:6333
 QDRANT_API_KEY=your_qdrant_api_key
 QDRANT_COLLECTION_NAME=multimodal_rag_playground
 
-# OpenRouter API Key for RAG Answer Generation
+# OpenRouter API Key for RAG Answer Generation (Admin default)
 OPENROUTER_API_KEY=sk-or-v1-your_openrouter_api_key
+
+# Auth & Security
+JWT_SECRET=your-random-64char-secret-here
+ENCRYPTION_KEY=your-fernet-encryption-key-here
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 ```
 
-*(Note: If `QDRANT_URL` is omitted, the app automatically falls back to an in-memory Qdrant client for local testing).*
+*(Note: Admin users with `is_admin = True` use the `.env` keys above. Regular users enter their own keys in the app via ⚙️ Settings).*
 
 ---
 
@@ -54,9 +75,9 @@ OPENROUTER_API_KEY=sk-or-v1-your_openrouter_api_key
 ```bash
 make prod
 ```
-- App UI: `http://localhost`
-- Backend API: `http://localhost:8000/docs`
-- PostgreSQL (for Beekeeper Studio / DBeaver): `localhost:5432`
+- App UI & Landing Page: `http://localhost`
+- Backend API Docs: `http://localhost:8000/docs`
+- PostgreSQL: `localhost:5432`
 
 ### 2. Local Dev Mode (Hot-Reload)
 ```bash
