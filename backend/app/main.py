@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import create_tables
-from .routers import chunk, history, presets, rag, techniques, upload
+from .routers import auth, chunk, history, presets, rag, techniques, upload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("chunking_playground")
@@ -53,7 +53,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Session Middleware (required for Google OAuth state parameter)
+from starlette.middleware.sessions import SessionMiddleware
+app.add_middleware(SessionMiddleware, secret_key=settings.jwt_secret)
+
 # Register API routers
+app.include_router(auth.router)
 app.include_router(techniques.router)
 app.include_router(chunk.router)
 app.include_router(presets.router)
