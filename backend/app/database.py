@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 engine = create_async_engine(
     settings.database_url,
-    echo=False,
+    echo=True,
     pool_pre_ping=True,
 )
 
