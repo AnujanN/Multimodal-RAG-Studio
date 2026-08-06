@@ -36,13 +36,19 @@ async def get_db():
 
 
 async def create_tables():
-    """Create all tables. Called on startup via lifespan."""
+    """Create all tables and run lightweight migrations on startup via lifespan."""
     logger.info("Creating database tables if they don't exist...")
     try:
         async with engine.begin() as conn:
             from . import models  # noqa: ensure models are registered
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created successfully.")
+            
+            # Migration: Add user_id column to existing chunking_results table if missing
+            from sqlalchemy import text
+            await conn.execute(
+                text("ALTER TABLE chunking_results ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;")
+            )
+        logger.info("Database tables and schema initialized successfully.")
     except Exception as e:
-        logger.error("Failed to create database tables: %s", e, exc_info=True)
+        logger.error("Failed to create/migrate database tables: %s", e, exc_info=True)
         raise
