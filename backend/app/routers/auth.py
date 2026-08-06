@@ -83,18 +83,19 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
             detail="Password must be at least 6 characters.",
         )
 
+    is_admin = body.email.strip().lower() in settings.admin_emails_list
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
-        is_admin=False,
+        is_admin=is_admin,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
     token = create_access_token(user.id, user.email, user.is_admin)
-    logger.info("New user registered: %s (id=%d)", user.email, user.id)
+    logger.info("New user registered: %s (id=%d, is_admin=%s)", user.email, user.id, user.is_admin)
 
     return TokenResponse(
         access_token=token,
@@ -117,8 +118,14 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Invalid email or password.",
         )
 
+    # Auto-promote user to admin if their email is in ADMIN_EMAILS
+    if body.email.strip().lower() in settings.admin_emails_list and not user.is_admin:
+        user.is_admin = True
+        await db.commit()
+        logger.info("User %s promoted to admin via ADMIN_EMAILS settings.", user.email)
+
     token = create_access_token(user.id, user.email, user.is_admin)
-    logger.info("User logged in: %s (id=%d)", user.email, user.id)
+    logger.info("User logged in: %s (id=%d, is_admin=%s)", user.email, user.id, user.is_admin)
 
     return TokenResponse(
         access_token=token,
@@ -284,14 +291,23 @@ async def google_oauth_callback(request: Request, db: AsyncSession = Depends(get
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
+    is_admin = email.strip().lower() in settings.admin_emails_list
+
     if not user:
-        user = User(email=email, full_name=full_name, google_id=google_id, is_admin=False)
+        user = User(email=email, full_name=full_name, google_id=google_id, is_admin=is_admin)
         db.add(user)
         await db.commit()
         await db.refresh(user)
-    elif not user.google_id:
-        user.google_id = google_id
-        await db.commit()
+    else:
+        updated = False
+        if not user.google_id:
+            user.google_id = google_id
+            updated = True
+        if is_admin and not user.is_admin:
+            user.is_admin = True
+            updated = True
+        if updated:
+            await db.commit()
 
     token = create_access_token(user.id, user.email, user.is_admin)
     # Redirect frontend with token in URL fragment (SPA handles it)
