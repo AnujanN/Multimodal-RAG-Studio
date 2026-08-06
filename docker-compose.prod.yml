@@ -26,6 +26,7 @@ services:
       CORS_ORIGINS: "http://localhost,http://localhost:5173"
       JWT_SECRET: ${JWT_SECRET:-please-change-this-to-a-random-64char-secret-in-production}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     depends_on:
